@@ -20,7 +20,7 @@ class Settings:
     DATABASE_URL: str = field(default_factory=lambda: os.getenv(
         "DATABASE_URL",
         "sqlite:///./test.db"
-    ))
+    ).replace("postgres://", "postgresql://", 1))
 
     # JWT Configuration
     SECRET_KEY: str = field(default_factory=lambda: os.getenv("SECRET_KEY", "dev-secret-key-change-in-production"))
