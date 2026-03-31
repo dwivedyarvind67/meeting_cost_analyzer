@@ -17,7 +17,7 @@ services:
           name: meeting-cost-analyzer-db
           property: connectionString
       - key: ENVIRONMENT
-        value: prod
+        value: dev
       - key: SECRET_KEY
         generateValue: true
       # You must manually set CORS_ORIGINS to your Vercel URL
