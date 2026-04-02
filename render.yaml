@@ -15,6 +15,8 @@ services:
         value: "https://your-vercel-app.vercel.app" 
       - key: ENVIRONMENT
         value: "production"
+      - key: PYTHON_VERSION
+        value: "3.11.0"
       # These must be set manually in the Render Dashboard
       - key: SECRET_KEY
         sync: false
