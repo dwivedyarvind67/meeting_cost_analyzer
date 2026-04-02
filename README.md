@@ -9,7 +9,7 @@ A production-ready SaaS application that calculates real-time meeting costs base
 ✅ Meeting History & Analytics
 ✅ Subscription Management (Free/Pro/Team)
 ✅ Razorpay + Stripe Payments
-✅ Dark Modern SaaS UI
+✅ Modern SaaS UI
 ✅ JWT Authentication + Google OAuth
 ✅ Feature-based Access Control
 
@@ -41,8 +41,7 @@ uvicorn main:app --reload
 ```
 
 Visit:
-- Frontend: http://localhost:3000
-- API Docs: http://localhost:8000/docs
+-https://meeting-cost-analyzer.vercel.app
 
 ## 📞 API Endpoints
 
