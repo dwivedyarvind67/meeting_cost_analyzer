@@ -4,9 +4,9 @@ import { motion } from "framer-motion";
 
 const cards = [
   {
-    label: "Wasted This Week",
+    label: "Saved This Week",
     value: "₹12,000",
-    icon: "🔥",
+    icon: "💰",
     accent: "#ff6b35",
     delay: 0,
     className: "animate-float-card-1",
@@ -22,9 +22,9 @@ const cards = [
     position: "top-12 right-0 md:right-4 z-20",
   },
   {
-    label: "Unproductive",
-    value: "32%",
-    icon: "📉",
+    label: "Productive",
+    value: "68%",
+    icon: "📈",
     accent: "#ff9f1c",
     delay: 0.3,
     className: "animate-float-card-3",

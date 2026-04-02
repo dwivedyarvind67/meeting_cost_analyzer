@@ -49,6 +49,10 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  
+  // Extra tracking states
+  const [meetingId, setMeetingId] = useState<number | null>(null);
+  const [secondsElapsed, setSecondsElapsed] = useState(0);
 
   const { scrollYProgress } = useScroll();
   const yOrb1 = useTransform(scrollYProgress, [0, 1], [0, 400]);
@@ -75,7 +79,7 @@ export default function Home() {
   };
 
   const startMeeting = async () => {
-    if (participants <= 0 || rate <= 0 || duration <= 0) {
+    if (participants <= 0 || rate <= 0 || duration < 0) {
       setError("Please enter valid values for all fields.");
       return;
     }
@@ -84,18 +88,25 @@ export default function Home() {
     setCost(localCost);
     setIsRunning(true);
     setError("");
-    setSuccess("Meeting started — cost is counting live!");
+    setSuccess("Meeting started — tracking savings potential live!");
 
     // If logged in, also save to backend
     if (token) {
       setLoading(true);
       try {
-        const res = await api.post("/calculate", {
-          duration,
-          participants,
-          avg_rate: rate,
-        });
-        setCost(res.data.total_cost);
+        if (token) {
+          const res = await api.post("/calculate", {
+            duration,
+            participants,
+            avg_rate: rate,
+          });
+          setMeetingId(res.data.meeting_id);
+        }
+
+        setIsRunning(true);
+        setSuccess("");
+        setSecondsElapsed(0);
+        setCost(participants * rate * duration);
       } catch {
         // API failed, but local calculation continues — no redirect
         console.warn("Backend save failed, using local calculation.");
@@ -104,9 +115,21 @@ export default function Home() {
     }
   };
 
-  const stopMeeting = () => {
+  const stopMeeting = async () => {
     setIsRunning(false);
-    setSuccess("Meeting stopped. Cost saved.");
+    
+    if (token && meetingId) {
+      try {
+        await api.put(`/meetings/${meetingId}`, {
+           duration: duration + (secondsElapsed / 3600),
+           total_cost: cost
+        });
+      } catch (err) {
+        console.error("Failed to update exact meeting costs", err);
+      }
+    }
+    
+    setSuccess("Meeting stopped. Savings recorded.");
   };
 
   useEffect(() => {
@@ -114,6 +137,7 @@ export default function Home() {
     if (isRunning) {
       interval = setInterval(() => {
         setCost((prev) => prev + (participants * rate) / 3600);
+        setSecondsElapsed((prev) => prev + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -123,7 +147,7 @@ export default function Home() {
     {
       icon: "⚡",
       title: "Real-Time Tracking",
-      desc: "Watch costs accumulate live as your meeting progresses",
+      desc: "Monitor savings opportunities live as your meeting progresses",
     },
     {
       icon: "📅",
@@ -148,7 +172,7 @@ export default function Home() {
     {
       icon: "👥",
       title: "Team Collaboration",
-      desc: "Share insights and track costs across your organization",
+      desc: "Share insights and optimize budgets across your organization",
     },
   ];
 
@@ -198,19 +222,19 @@ export default function Home() {
                 variants={itemVariants}
                 className="text-5xl md:text-6xl lg:text-7xl font-extrabold font-display tracking-tight mb-6 leading-[1.05]"
               >
-                Know the Real
+                Maximize Your
                 <br />
-                Cost of Your{" "}
-                <span className="gradient-text-warm">Meetings</span>
+                Meeting{" "}
+                <span className="gradient-text-warm">Savings</span>
               </motion.h1>
 
               <motion.p
                 variants={itemVariants}
                 className="text-lg md:text-xl text-white/40 max-w-xl mb-10 leading-relaxed"
               >
-                Stop guessing. Track real-time meeting costs, sync your
-                calendar, and make data-driven decisions about how your team
-                spends time.
+                Start saving smarter. Track meeting investments in real-time, sync your
+                calendar, and make data-driven decisions to optimize how your team
+                invests time.
               </motion.p>
 
               <motion.div
@@ -305,7 +329,7 @@ export default function Home() {
               <span className="gradient-text">Live</span>
             </h2>
             <p className="text-white/40 max-w-md mx-auto">
-              Enter your meeting details and watch costs add up in real-time
+              Enter your meeting details and discover your savings potential in real-time
             </p>
           </motion.div>
 
@@ -342,7 +366,7 @@ export default function Home() {
                 Live Meeting Calculator
               </h2>
               <p className="text-white/35 text-center text-sm mb-8">
-                Enter details and watch costs accumulate in real-time
+                Enter details and see your potential savings in real-time
               </p>
 
               <AnimatePresence>
@@ -368,7 +392,7 @@ export default function Home() {
                 )}
               </AnimatePresence>
 
-              <div className="space-y-4 mb-6 relative z-10" role="form" aria-label="Meeting cost calculator">
+              <div className="space-y-4 mb-6 relative z-10" role="form" aria-label="Meeting savings calculator">
                 <div>
                   <label htmlFor="calc-people" className="block text-sm font-medium text-white/45 mb-2">
                     Number of People
@@ -410,9 +434,9 @@ export default function Home() {
                     type="number"
                     value={duration}
                     className="input-field"
-                    onChange={(e) => setDuration(parseNum(e.target.value, 0.5))}
+                    onChange={(e) => setDuration(parseNum(e.target.value, 0))}
                     onFocus={handleFocus}
-                    min={0.1}
+                    min={0}
                     step={0.5}
                     placeholder="1"
                     aria-label="Meeting duration in hours"
@@ -429,7 +453,7 @@ export default function Home() {
                   style={{ background: "rgba(255, 107, 53, 0.06)", border: "1px solid rgba(255, 107, 53, 0.12)" }}
                   aria-live="polite"
                 >
-                  <p className="text-xs text-white/40 mb-1 uppercase tracking-wide">Estimated Total Cost</p>
+                  <p className="text-xs text-white/40 mb-1 uppercase tracking-wide">Savings You Could Unlock</p>
                   <p className="text-3xl font-extrabold font-display gradient-text-primary tabular-nums">
                     ₹{estimatedCost.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
@@ -491,7 +515,7 @@ export default function Home() {
               {/* Cost Display — only shown when meeting is running */}
               {isRunning && (
                 <div className="text-center relative z-10" aria-live="polite">
-                  <p className="text-sm text-white/35 mb-2">Running cost...</p>
+                  <p className="text-sm text-white/35 mb-2">Potential savings growing...</p>
                   <div className="flex items-center justify-center">
                     <motion.div
                       key={Math.floor(cost)}
@@ -571,10 +595,10 @@ export default function Home() {
           >
             <h2 className="text-3xl md:text-4xl font-bold font-display mb-4">
               Everything You Need to{" "}
-              <span className="gradient-text">Track Costs</span>
+              <span className="gradient-text">Maximize Savings</span>
             </h2>
             <p className="text-white/40 max-w-xl mx-auto">
-              Powerful tools for individuals and teams to analyze meeting spend
+              Powerful tools for individuals and teams to optimize meeting investments
             </p>
           </motion.div>
 
@@ -627,7 +651,7 @@ export default function Home() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-8 relative z-10">
               {[
                 { value: 10000, suffix: "+", label: "Meetings Tracked" },
-                { value: 500, prefix: "₹", suffix: "K+", label: "Costs Analyzed" },
+                { value: 500, prefix: "₹", suffix: "K+", label: "Money Saved" },
                 { value: 2500, suffix: "+", label: "Active Users" },
                 { value: 99, suffix: "%", label: "Uptime" },
               ].map((s, i) => (
@@ -810,14 +834,14 @@ export default function Home() {
 
             <div className="relative z-10">
               <h2 className="text-3xl md:text-4xl font-bold font-display mb-4">
-                Start Tracking Your{" "}
-                <span className="gradient-text">Meeting Costs</span>
+                Start Maximizing Your{" "}
+                <span className="gradient-text">Meeting Savings</span>
                 <br />
                 Today
               </h2>
               <p className="text-white/40 max-w-lg mx-auto mb-8">
                 Join thousands of teams who&apos;ve already saved time and money
-                with Meeting Cost Analyzer. Get started in seconds.
+                with Meeting Savings Analyzer. Get started in seconds.
               </p>
               <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <Link

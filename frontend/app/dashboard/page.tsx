@@ -70,10 +70,33 @@ export default function Dashboard() {
   const [synced, setSynced] = useState(false);
   const [chartReady, setChartReady] = useState(false);
 
+  const syncCalendar = async (accessToken: string) => {
+    setLoading(true);
+    try {
+      const res = await api.post("/google-calendar", {
+        access_token: accessToken,
+      });
+      const data = res.data;
+      setEvents(data);
+      setTotal(data.reduce((sum: number, e: any) => sum + e.cost, 0));
+      setSynced(true);
+    } catch {
+      localStorage.removeItem("google_calendar_token");
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
     const t = localStorage.getItem("access");
     setToken(t);
-    if (!t) window.location.href = "/login";
+    if (!t) {
+      window.location.href = "/login";
+      return;
+    }
+    const gToken = localStorage.getItem("google_calendar_token");
+    if (gToken) {
+      syncCalendar(gToken);
+    }
   }, []);
 
   // Delay chart render slightly for animation effect
@@ -86,27 +109,20 @@ export default function Dashboard() {
   const login = useGoogleLogin({
     scope: "https://www.googleapis.com/auth/calendar.readonly",
     onSuccess: async (tokenResponse) => {
-      if (!token) {
-        window.location.href = "/login";
-        return;
-      }
-      setLoading(true);
-      try {
-        const res = await api.post("/google-calendar", {
-          access_token: tokenResponse.access_token,
-        });
-        const data = res.data;
-        setEvents(data);
-        setTotal(data.reduce((sum: number, e: any) => sum + e.cost, 0));
-        setSynced(true);
-      } catch {
-        localStorage.removeItem("access");
-        window.location.href = "/login";
-      }
-      setLoading(false);
+      localStorage.setItem("google_calendar_token", tokenResponse.access_token);
+      syncCalendar(tokenResponse.access_token);
     },
     onError: () => {},
   });
+
+  const handleRefresh = () => {
+    const gToken = localStorage.getItem("google_calendar_token");
+    if (gToken) {
+      syncCalendar(gToken);
+    } else {
+      login();
+    }
+  };
 
   const avgCost = events.length > 0 ? total / events.length : 0;
 
@@ -171,7 +187,7 @@ export default function Dashboard() {
           <motion.button
             whileHover={!loading ? { scale: 1.05 } : {}}
             whileTap={!loading ? { scale: 0.95 } : {}}
-            onClick={() => login()}
+            onClick={handleRefresh}
             disabled={loading}
             className="btn-primary px-6 py-3 rounded-xl text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-50 relative overflow-hidden"
           >

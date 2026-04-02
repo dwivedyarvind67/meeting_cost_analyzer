@@ -12,33 +12,51 @@ export default function CalendarPage() {
   const [loading, setLoading] = useState(false);
   const [synced, setSynced] = useState(false);
 
+  const syncCalendar = async (accessToken: string) => {
+    setLoading(true);
+    try {
+      const res = await api.post("/google-calendar", {
+        access_token: accessToken,
+      });
+      setEvents(res.data);
+      setSynced(true);
+    } catch {
+      localStorage.removeItem("google_calendar_token");
+      alert("Session expired. Please reconnect your calendar.");
+    }
+    setLoading(false);
+  };
+
   useEffect(() => {
     const t = localStorage.getItem("access");
     setToken(t);
-    if (!t) window.location.href = "/login";
+    if (!t) {
+      window.location.href = "/login";
+      return;
+    }
+    const gToken = localStorage.getItem("google_calendar_token");
+    if (gToken) {
+      syncCalendar(gToken);
+    }
   }, []);
 
   const login = useGoogleLogin({
     scope: "https://www.googleapis.com/auth/calendar.readonly",
     onSuccess: async (tokenResponse) => {
-      if (!token) {
-        window.location.href = "/login";
-        return;
-      }
-      setLoading(true);
-      try {
-        const res = await api.post("/google-calendar", {
-          access_token: tokenResponse.access_token,
-        });
-        setEvents(res.data);
-        setSynced(true);
-      } catch {
-        alert("Failed to sync calendar. Please try again.");
-      }
-      setLoading(false);
+      localStorage.setItem("google_calendar_token", tokenResponse.access_token);
+      syncCalendar(tokenResponse.access_token);
     },
     onError: () => {},
   });
+
+  const handleRefresh = () => {
+    const gToken = localStorage.getItem("google_calendar_token");
+    if (gToken) {
+      syncCalendar(gToken);
+    } else {
+      login();
+    }
+  };
 
   const totalCost = events.reduce((sum, e) => sum + e.cost, 0);
   const totalDuration = events.reduce((sum, e) => sum + e.duration, 0);
@@ -61,7 +79,7 @@ export default function CalendarPage() {
             </p>
           </div>
           <button
-            onClick={() => login()}
+            onClick={handleRefresh}
             disabled={loading}
             className="btn-primary px-6 py-3 rounded-xl text-sm font-semibold inline-flex items-center gap-2 disabled:opacity-50"
           >

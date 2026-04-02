@@ -34,6 +34,7 @@ export default function Navbar() {
         { href: "/", label: "Home" },
         { href: "/dashboard", label: "Dashboard" },
         { href: "/calendar", label: "Calendar" },
+        { href: "/schedule", label: "Schedule" },
         { href: "/history", label: "History" },
         { href: "/billing", label: "Billing" },
       ]

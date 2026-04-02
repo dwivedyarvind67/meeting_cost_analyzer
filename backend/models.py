@@ -28,6 +28,21 @@ class Meeting(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class ScheduledMeeting(Base):
+    __tablename__ = "scheduled_meetings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String)
+    scheduled_time = Column(DateTime)
+    duration = Column(Float)
+    participants = Column(Integer)
+    avg_rate = Column(Float)
+    total_projected_cost = Column(Float)
+    user_id = Column(Integer, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class SubscriptionTier(str, enum.Enum):
     """Subscription tier types."""
     FREE = "free"

@@ -67,6 +67,15 @@ class MeetingCreate(BaseModel):
     source: str = "manual"
 
 
+class ScheduledMeetingCreate(BaseModel):
+    title: str
+    scheduled_time: datetime
+    duration: float
+    participants: int
+    avg_rate: float
+
+
+
 # =======================
 # DB
 # =======================
@@ -187,6 +196,47 @@ def google_login(data: dict, db: Session = Depends(get_db)):
     }
 
 
+@app.post("/google-login-access")
+def google_login_access(data: dict, db: Session = Depends(get_db)):
+    # Verify the access token directly from google
+    token = data.get("token")
+    if not token:
+        raise HTTPException(status_code=400, detail="Missing Google access token")
+        
+    try:
+        response = pyrequests.get(
+            f"https://www.googleapis.com/oauth2/v3/userinfo?access_token={token}"
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid Google access token")
+            
+        user_info = response.json()
+        email = user_info.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Could not retrieve email from Google")
+            
+        db_user = db.query(models.User).filter(models.User.email == email).first()
+
+        if not db_user:
+            db_user = models.User(email=email, password="google")
+            db.add(db_user)
+            db.commit()
+            db.refresh(db_user)
+
+            # Create default FREE subscription for new Google users
+            from services.subscription import get_or_create_subscription
+            get_or_create_subscription(db, db_user.id)
+
+        return {
+            "access_token": create_access_token({"user_id": db_user.id}),
+            "refresh_token": create_refresh_token({"user_id": db_user.id}),
+        }
+    except Exception as e:
+        print("GOOGLE LOGIN ERROR:", str(e))
+        raise HTTPException(status_code=500, detail="Login failed")
+
+
+
 # 💸 CALCULATE + SAVE
 @app.post("/calculate")
 def calculate_cost(
@@ -221,13 +271,73 @@ def calculate_cost(
     return {"total_cost": total_cost, "meeting_id": new_meeting.id}
 
 
-# 📊 GET MEETINGS
+# 💸 GET MEETINGS
 @app.get("/meetings")
 def get_meetings(
     db: Session = Depends(get_db),
     user_id: int = Depends(get_current_user)
 ):
     return db.query(models.Meeting).filter(models.Meeting.user_id == user_id).all()
+
+
+# 🔄 UPDATE MEETING COST END
+@app.put("/meetings/{meeting_id}")
+def update_meeting(
+    meeting_id: int,
+    meeting_data: dict,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user)
+):
+    db_meeting = db.query(models.Meeting).filter(models.Meeting.id == meeting_id, models.Meeting.user_id == user_id).first()
+    if not db_meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+        
+    duration = meeting_data.get("duration")
+    total_cost = meeting_data.get("total_cost")
+    
+    if duration is not None:
+        db_meeting.duration = duration
+    if total_cost is not None:
+        db_meeting.total_cost = total_cost
+        
+    db.commit()
+    db.refresh(db_meeting)
+    return db_meeting
+
+
+# 📅 SCHEDULE MEETINGS
+@app.post("/scheduled-meetings")
+def create_scheduled_meeting(
+    meeting: ScheduledMeetingCreate,
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user)
+):
+    total_projected_cost = meeting.duration * meeting.participants * meeting.avg_rate
+
+    # If your subscription logic applies here, we could add it, but for now we just create it.
+    new_meeting = models.ScheduledMeeting(
+        title=meeting.title,
+        scheduled_time=meeting.scheduled_time,
+        duration=meeting.duration,
+        participants=meeting.participants,
+        avg_rate=meeting.avg_rate,
+        total_projected_cost=total_projected_cost,
+        user_id=user_id
+    )
+
+    db.add(new_meeting)
+    db.commit()
+    db.refresh(new_meeting)
+
+    return new_meeting
+
+
+@app.get("/scheduled-meetings")
+def get_scheduled_meetings(
+    db: Session = Depends(get_db),
+    user_id: int = Depends(get_current_user)
+):
+    return db.query(models.ScheduledMeeting).filter(models.ScheduledMeeting.user_id == user_id).order_by(models.ScheduledMeeting.scheduled_time.asc()).all()
 
 
 # 📅 GOOGLE CALENDAR
@@ -242,8 +352,11 @@ def get_google_calendar(
         if not access_token:
             raise HTTPException(status_code=400, detail="Missing Google access token")
 
+        time_min = datetime.utcnow().isoformat() + "Z"
+        url = f"https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin={time_min}&singleEvents=true&orderBy=startTime&maxResults=20"
+        
         response = pyrequests.get(
-            "https://www.googleapis.com/calendar/v3/calendars/primary/events",
+            url,
             headers={
                 "Authorization": f"Bearer {access_token}"
             }
@@ -256,7 +369,7 @@ def get_google_calendar(
 
         formatted_events = []
 
-        for e in events[:10]:
+        for e in events:
             start = e.get("start", {}).get("dateTime", "")
             end = e.get("end", {}).get("dateTime", "")
 

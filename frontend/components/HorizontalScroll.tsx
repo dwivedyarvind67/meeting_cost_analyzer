@@ -7,7 +7,7 @@ const features = [
   {
     icon: "⚡",
     title: "Real-time Cost Tracking",
-    desc: "Watch meeting costs accumulate second by second as your team collaborates. Never wonder where the budget went.",
+    desc: "Track meeting investments second by second as your team collaborates. See exactly how your budget is optimized.",
     gradient: "from-orange-500/20 to-red-500/10",
     accent: "#ff6b35",
   },
